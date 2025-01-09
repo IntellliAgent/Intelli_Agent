@@ -38,9 +38,11 @@
   tool in various domains.
 </p>
 
-## 🚀 Quick Start 1. Install IntelliAgent: ```bash pip install intelliagent
+## 🚀 Quick Start
 
-````
+1. Install IntelliAgent:
+
+Visit our PyPI package page: [https://pypi.org/project/intelliagent/](https://pypi.org/project/intelliagent/)
 
 2. Use it in your project:
 
