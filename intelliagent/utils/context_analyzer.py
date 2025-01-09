@@ -35,40 +35,41 @@ class ContextAnalyzer:
             'neutral': ['okay', 'normal', 'standard', 'regular', 'usual']
         }
 
-    def analyze_input(self, input_data: str) -> Dict[str, Any]:
-        """Analyze input data to extract relevant context."""
+        return enriched_context
+
+    def _extract_info(self, input_data: str) -> Dict:
+        """Extract key information from input text."""
+        # Simple extraction for now
+        words = input_data.lower().split()
         return {
-            "entities": self._extract_entities(input_data),
-            "sentiment": self._analyze_sentiment(input_data),
-            "key_points": self._extract_key_points(input_data),
-            "metadata": {
-                "timestamp": datetime.now().isoformat(),
-                "length": len(input_data),
-                "complexity": self._calculate_complexity(input_data)
-            }
+            "word_count": len(words),
+            "has_question": "?" in input_data,
+            "sentiment": self._analyze_sentiment(words)
         }
 
-    def _extract_entities(self, text: str) -> Dict[str, List[str]]:
-        """Extract entities from text using patterns."""
-        entities = defaultdict(list)
+    def _analyze_sentiment(self, words: list) -> str:
+        """Basic sentiment analysis."""
+        positive_words = {"good", "great", "excellent", "amazing", "wonderful"}
+        negative_words = {"bad", "poor", "terrible", "awful", "horrible"}
 
-        for entity_type, pattern in self.entity_patterns.items():
-            matches = re.finditer(pattern, text)
-            entities[entity_type].extend([m.group() for m in matches])
+        positive_count = sum(1 for word in words if word in positive_words)
+        negative_count = sum(1 for word in words if word in negative_words)
 
-        return dict(entities)
+        if positive_count > negative_count:
+            return "positive"
+        elif negative_count > positive_count:
+            return "negative"
+        return "neutral"
 
-    def _analyze_sentiment(self, text: str) -> Dict[str, float]:
-        """Analyze text sentiment based on keyword matching."""
-        text = text.lower()
-        scores = {
-            'positive': 0.0,
-            'negative': 0.0,
-            'neutral': 0.0
-        }
+    def _track_context(self, user_id: str, context: Dict) -> None:
+        """Track context history for a user."""
+        if user_id not in self.context_history:
+            self.context_history[user_id] = []
 
-        words = text.split()
-        total_matches = 0
+        self.context_history[user_id].append({
+            "context": context,
+            "timestamp": datetime.now().isoformat()
+        })
 
         for sentiment, keywords in self.sentiment_keywords.items():
             matches = sum(1 for word in words if word in keywords)
