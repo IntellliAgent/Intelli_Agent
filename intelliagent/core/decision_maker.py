@@ -1,12 +1,12 @@
-from typing import Dict, List, Optional
-from ..utils import (
-    DataProcessor,
-    ContextAnalyzer,
-    ErrorHandler,
-    AgentLogger,
-    CacheManager
-)
-from ..models import ModelFactory
+from typing import Dict, Any, Optional
+from datetime import datetime
+
+from ..models.gpt_model import GPTModel
+from ..utils.context_analyzer import ContextAnalyzer
+from ..utils.cache_manager import CacheManager
+from ..utils.rate_limiter import RateLimiter
+from ..core.chain_of_thought import ChainOfThought
+from ..core.uncertainty_handler import UncertaintyHandler
 
 
 class DecisionMaker:
@@ -14,44 +14,94 @@ class DecisionMaker:
         self,
         api_key: str,
         model: str = "gpt-4",
-        domain: str = "general",
-        continuous_learning: bool = True,
-        cache_enabled: bool = True,
-        log_file: Optional[str] = None
+        cache_size: int = 1000,
+        requests_per_minute: int = 60
     ):
-        # Initialize base components
-        self.model = ModelFactory.create_model(model, api_key)
-        self.domain = domain
-        self.continuous_learning = continuous_learning
-        
-        # Initialize utilities
-        self.data_processor = DataProcessor()
+        """Initialize the decision maker with required components."""
+        self.model = GPTModel(api_key=api_key, model_name=model)
         self.context_analyzer = ContextAnalyzer()
-        self.error_handler = ErrorHandler()
-        self.belief_generator = BeliefGenerator(self.model)
-        self.domain_adapter = DomainAdapter(domain)
-        self.memory_manager = MemoryManager()
+        self.cache = CacheManager(max_size=cache_size)
+        self.rate_limiter = RateLimiter(requests_per_minute=requests_per_minute)
+        self.chain_of_thought = ChainOfThought()
+        self.uncertainty_handler = UncertaintyHandler()
 
-    def make_decision(self, user_id: str, input_data: str) -> Dict:
-        """Make a decision based on user data and context."""
-        context = self.user_contexts.get(user_id, {})
-        # Implementation here
-        return {"decision": "Not implemented yet", "context": context}
+    def make_decision(
+        self,
+        user_id: str,
+        input_data: str,
+        context: Optional[Dict] = None
+    ) -> Dict[str, Any]:
+        """Make a decision based on input and context."""
+        # Check rate limit
+        if not self.rate_limiter.check_limit(user_id):
+            return {
+                "error": "Rate limit exceeded",
+                "remaining_requests": self.rate_limiter.get_remaining_requests(user_id)
+            }
 
-    def update_model(self, user_id: str, feedback: str) -> Dict:
-        """Update the decision model with user feedback."""
-        context = self.user_contexts.get(user_id, {})
-        # Implementation here
-        return {"status": "success", "context": context}
+        # Check cache
+        cache_key = self._generate_cache_key(input_data, context)
+        cached_result = self.cache.get(cache_key)
+        if cached_result:
+            return {**cached_result, "cached": True}
 
-    def get_decision_context(self, user_id: str) -> str:
-        """Retrieve the decision-making context for a user."""
-        return str(self.user_contexts.get(user_id, {}))
+        # Analyze context
+        enriched_context = self.context_analyzer.analyze(
+            input_data,
+            context or {}
+        )
 
-    def batch_process(self, user_id: str, inputs: List[str]) -> Dict:
-        """Process multiple pieces of input data at once."""
-        results = []
-        for input_data in inputs:
-            result = self.make_decision(user_id, input_data)
-            results.append(result)
-        return {"results": results}
+        # Generate chain of thought
+        thought_id = self.chain_of_thought.add_thought(
+            content=input_data,
+            confidence=1.0,
+            context=enriched_context
+        )
+
+        # Make decision
+        try:
+            result = self.model.process_input(input_data, enriched_context)
+
+            # Evaluate uncertainty
+            uncertainty_score, uncertainty_details = (
+                self.uncertainty_handler.evaluate_uncertainty(
+                    result.get("predictions", []),
+                    enriched_context
+                )
+            )
+
+            # Prepare final response
+            response = {
+                "decision": result.get("decision"),
+                "confidence": 1.0 - uncertainty_score,
+                "reasoning": result.get("reasoning", []),
+                "uncertainty": uncertainty_details,
+                "context": enriched_context,
+                "thought_chain": self.chain_of_thought.get_chain(thought_id),
+                "timestamp": datetime.now().isoformat(),
+                "cached": False
+            }
+
+            # Cache result
+            self.cache.set(cache_key, response)
+
+            return response
+
+        except Exception as e:
+            return {
+                "error": str(e),
+                "context": enriched_context,
+                "timestamp": datetime.now().isoformat()
+            }
+
+    def _generate_cache_key(
+        self,
+        input_data: str,
+        context: Optional[Dict]
+    ) -> str:
+        """Generate a cache key from input and context."""
+        key_parts = [input_data]
+        if context:
+            for k, v in sorted(context.items()):
+                key_parts.append(f"{k}:{v}")
+        return ":".join(key_parts)
