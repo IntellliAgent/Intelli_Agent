@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional, Callable
+from typing import Dict, List, Callable
 from dataclasses import dataclass
 from datetime import datetime
 import asyncio

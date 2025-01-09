@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    volumes:
+      - .:/app
+    environment:
+      - PYTHONPATH=/app
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    command: python -m pytest
+
+  docs:
+    build: .
+    volumes:
+      - .:/app
+    command: make -C docs html
+    ports:
+      - "8000:8000"
+
+  lint:
+    build: .
+    volumes:
+      - .:/app
+    command: ./scripts/lint.sh
