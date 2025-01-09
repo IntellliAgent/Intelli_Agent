@@ -1,4 +1,12 @@
-from typing import Dict, List
+from typing import Dict, List, Optional
+from ..utils import (
+    DataProcessor,
+    ContextAnalyzer,
+    ErrorHandler,
+    AgentLogger,
+    CacheManager
+)
+from ..models import ModelFactory
 
 
 class DecisionMaker:
@@ -7,13 +15,22 @@ class DecisionMaker:
         api_key: str,
         model: str = "gpt-4",
         domain: str = "general",
-        continuous_learning: bool = True
+        continuous_learning: bool = True,
+        cache_enabled: bool = True,
+        log_file: Optional[str] = None
     ):
-        self.api_key = api_key
-        self.model = model
+        # Initialize base components
+        self.model = ModelFactory.create_model(model, api_key)
         self.domain = domain
         self.continuous_learning = continuous_learning
-        self.user_contexts = {}
+        
+        # Initialize utilities
+        self.data_processor = DataProcessor()
+        self.context_analyzer = ContextAnalyzer()
+        self.error_handler = ErrorHandler()
+        self.belief_generator = BeliefGenerator(self.model)
+        self.domain_adapter = DomainAdapter(domain)
+        self.memory_manager = MemoryManager()
 
     def make_decision(self, user_id: str, input_data: str) -> Dict:
         """Make a decision based on user data and context."""
