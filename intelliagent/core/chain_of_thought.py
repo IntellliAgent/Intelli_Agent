@@ -1,21 +1,28 @@
-from typing import Dict, List, Optional
+"""Chain of thought reasoning implementation."""
+
+from typing import List, Dict, Optional
 from dataclasses import dataclass
 from datetime import datetime
+import uuid
 
 
 @dataclass
 class Thought:
+    """Represents a single thought in the chain."""
+    id: str
     content: str
     confidence: float
-    timestamp: datetime
     context: Dict
+    timestamp: datetime
     previous_thought_id: Optional[str] = None
 
 
 class ChainOfThought:
+    """Manages chains of thoughts for reasoning."""
+
     def __init__(self):
+        """Initialize the chain of thought manager."""
         self.thoughts: List[Thought] = []
-        self.current_chain: List[str] = []
 
     def add_thought(
         self,
@@ -24,76 +31,124 @@ class ChainOfThought:
         context: Dict,
         previous_thought_id: Optional[str] = None
     ) -> str:
-        """Add a new thought to the chain."""
+        """Add a new thought to the chain.
+
+        Args:
+            content: The thought content.
+            confidence: Confidence score for the thought.
+            context: Context information.
+            previous_thought_id: ID of the previous thought if any.
+
+        Returns:
+            str: ID of the new thought.
+        """
+        thought_id = f"thought_{uuid.uuid4().hex[:8]}"
         thought = Thought(
+            id=thought_id,
             content=content,
             confidence=confidence,
-            timestamp=datetime.now(),
             context=context,
+            timestamp=datetime.now(),
             previous_thought_id=previous_thought_id
         )
-
-        thought_id = f"thought_{len(self.thoughts)}"
         self.thoughts.append(thought)
-
-        if previous_thought_id:
-            self._update_chain(thought_id, previous_thought_id)
-        else:
-            self.current_chain = [thought_id]
-
         return thought_id
 
-    def _update_chain(self, new_thought_id: str, previous_id: str) -> None:
-        """Update the current chain of thoughts."""
-        if previous_id in self.current_chain:
-            idx = self.current_chain.index(previous_id)
-            self.current_chain = self.current_chain[:idx +
-                                                    1] + [new_thought_id]
-        else:
-            self.current_chain = [new_thought_id]
-
     def get_chain(self, thought_id: Optional[str] = None) -> List[Thought]:
-        """Get the chain of thoughts leading to a specific thought."""
+        """Get the chain of thoughts leading to a specific thought.
+
+        Args:
+            thought_id: ID of the target thought.
+
+        Returns:
+            List[Thought]: Chain of thoughts.
+        """
         if not thought_id:
-            return [self.thoughts[int(tid.split('_')[1])]
-                    for tid in self.current_chain]
+            return self.thoughts
 
         chain = []
         current_id = thought_id
 
         while current_id:
-            thought = self.thoughts[int(current_id.split('_')[1])]
+            thought = self._find_thought(current_id)
+            if not thought:
+                break
+
             chain.insert(0, thought)
             current_id = thought.previous_thought_id
 
         return chain
 
-    def analyze_chain(self, chain: List[Thought]) -> Dict:
-        """Analyze a chain of thoughts."""
+    def analyze_chain(self, thought_chain: List[Thought]) -> Dict:
+        """Analyze a chain of thoughts.
+
+        Args:
+            thought_chain: List of thoughts to analyze.
+
+        Returns:
+            Dict: Analysis results.
+        """
+        if not thought_chain:
+            return {
+                "length": 0,
+                "average_confidence": 0.0,
+                "context_evolution": {}
+            }
+
+        # Calculate metrics
+        confidences = [t.confidence for t in thought_chain]
+        avg_confidence = sum(confidences) / len(confidences)
+
+        # Analyze context evolution
+        context_evolution = {}
+        for i, thought in enumerate(thought_chain[:-1]):
+            next_thought = thought_chain[i + 1]
+            changes = self._compare_contexts(thought.context, next_thought.context)
+            if changes:
+                context_evolution[f"step_{i+1}"] = changes
+
         return {
-            "length": len(chain),
-            "average_confidence": sum(t.confidence for t in chain) / len(chain),
-            "time_span": (chain[-1].timestamp - chain[0].timestamp).total_seconds(),
-            "context_evolution": self._analyze_context_evolution(chain)
+            "length": len(thought_chain),
+            "average_confidence": avg_confidence,
+            "context_evolution": context_evolution
         }
 
-    def _analyze_context_evolution(self, chain: List[Thought]) -> Dict:
-        """Analyze how context evolved through the chain."""
-        if not chain:
-            return {}
+    def _find_thought(self, thought_id: str) -> Optional[Thought]:
+        """Find a thought by its ID.
 
-        context_changes = {}
-        base_context = chain[0].context
+        Args:
+            thought_id: ID of the thought to find.
 
-        for thought in chain[1:]:
-            changes = {}
-            for key, value in thought.context.items():
-                if key not in base_context or base_context[key] != value:
-                    changes[key] = {
-                        "from": base_context.get(key, None),
-                        "to": value
-                    }
-            if changes:
-                context_changes[thought.timestamp.isoformat()] = changes
+        Returns:
+            Optional[Thought]: The found thought or None.
+        """
+        for thought in self.thoughts:
+            if thought.id == thought_id:
+                return thought
+        return None
 
-        return context_changes
+    def _compare_contexts(self, context1: Dict, context2: Dict) -> Dict:
+        """Compare two contexts and find differences.
+
+        Args:
+            context1: First context.
+            context2: Second context.
+
+        Returns:
+            Dict: Dictionary of changes.
+        """
+        changes = {}
+        all_keys = set(context1.keys()) | set(context2.keys())
+
+        for key in all_keys:
+            if key not in context1:
+                changes[key] = {"added": context2[key]}
+            elif key not in context2:
+                changes[key] = {"removed": context1[key]}
+            elif context1[key] != context2[key]:
+                changes[key] = {
+                    "from": context1[key],
+                    "to": context2[key]
+                }
+
+        return changes

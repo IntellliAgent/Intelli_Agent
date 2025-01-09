@@ -1,68 +1,61 @@
-from typing import Dict
+"""Rate limiter implementation for API request management."""
+
+from typing import Dict, Optional
 from datetime import datetime, timedelta
-import threading
-import time
+from collections import defaultdict
 
 
 class RateLimiter:
-    def __init__(
-        self,
-        requests_per_minute: int = 60,
-        burst_limit: int = 10
-    ):
-        self.rate_limit = requests_per_minute
-        self.burst_limit = burst_limit
-        self.requests: Dict[str, list] = {}
-        self.lock = threading.Lock()
+    def __init__(self, requests_per_minute: int = 60):
+        """Initialize the rate limiter.
+
+        Args:
+            requests_per_minute: Maximum number of requests allowed per minute.
+        """
+        self.requests_per_minute = requests_per_minute
+        self.request_history: Dict[str, list] = defaultdict(list)
 
     def check_limit(self, user_id: str) -> bool:
-        """Check if request is within rate limits."""
-        with self.lock:
-            now = datetime.now()
-            self._cleanup_old_requests(user_id, now)
+        """Check if user has exceeded their rate limit.
 
-            if user_id not in self.requests:
-                self.requests[user_id] = []
+        Args:
+            user_id: Unique identifier for the user.
 
-            # Check burst limit
-            if len(self.requests[user_id]) >= self.burst_limit:
-                return False
+        Returns:
+            bool: True if request is allowed, False if limit exceeded.
+        """
+        now = datetime.now()
+        self._cleanup_history(user_id, now)
 
-            # Check rate limit
-            minute_ago = now - timedelta(minutes=1)
-            recent_requests = [
-                req for req in self.requests[user_id]
-                if req > minute_ago
-            ]
+        if len(self.request_history[user_id]) >= self.requests_per_minute:
+            return False
 
-            if len(recent_requests) >= self.rate_limit:
-                return False
-
-            self.requests[user_id].append(now)
-            return True
-
-    def _cleanup_old_requests(self, user_id: str, now: datetime) -> None:
-        """Remove requests older than 1 minute."""
-        if user_id in self.requests:
-            minute_ago = now - timedelta(minutes=1)
-            self.requests[user_id] = [
-                req for req in self.requests[user_id]
-                if req > minute_ago
-            ]
+        self.request_history[user_id].append(now)
+        return True
 
     def get_remaining_requests(self, user_id: str) -> int:
-        """Get number of remaining requests for the current minute."""
-        with self.lock:
-            now = datetime.now()
-            self._cleanup_old_requests(user_id, now)
+        """Get number of remaining requests for user.
 
-            if user_id not in self.requests:
-                return self.rate_limit
+        Args:
+            user_id: Unique identifier for the user.
 
-            minute_ago = now - timedelta(minutes=1)
-            recent_requests = [
-                req for req in self.requests[user_id]
-                if req > minute_ago
-            ]
+        Returns:
+            int: Number of remaining requests allowed.
+        """
+        now = datetime.now()
+        self._cleanup_history(user_id, now)
 
-            return max(0, self.rate_limit - len(recent_requests))
+        return max(0, self.requests_per_minute - len(self.request_history[user_id]))
+
+    def _cleanup_history(self, user_id: str, current_time: datetime) -> None:
+        """Remove requests older than 1 minute from history.
+
+        Args:
+            user_id: Unique identifier for the user.
+            current_time: Current timestamp for comparison.
+        """
+        cutoff_time = current_time - timedelta(minutes=1)
+        self.request_history[user_id] = [
+            timestamp for timestamp in self.request_history[user_id]
+            if timestamp > cutoff_time
+        ]
