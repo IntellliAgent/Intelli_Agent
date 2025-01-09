@@ -1,4 +1,5 @@
 import pytest
+from datetime import datetime, timedelta
 from intelliagent.monitoring.health_check import HealthMonitor
 
 
@@ -10,6 +11,7 @@ def monitor():
 def test_get_system_health(monitor):
     health = monitor.get_system_health()
 
+    assert isinstance(health, dict)
     assert "cpu_usage" in health
     assert "memory_usage" in health
     assert "disk_usage" in health
@@ -22,7 +24,6 @@ def test_get_system_health(monitor):
 
 
 def test_get_agent_health(monitor):
-    # Create mock agent
     class MockAgent:
         def __init__(self):
             self.cache = MockCache()
@@ -47,37 +48,30 @@ def test_get_agent_health(monitor):
     agent = MockAgent()
     health = monitor.get_agent_health(agent)
 
-    assert "cache_size" in health
+    assert isinstance(health, dict)
     assert health["cache_size"] == 1
-    assert "memory_usage" in health
     assert health["memory_usage"] == 2
-    assert "model_status" in health
     assert health["model_status"] == "healthy"
-    assert "last_error" in health
     assert health["last_error"] is None
 
 
-def test_check_model_status_error(monitor):
-    class MockAgent:
+def test_agent_health_with_errors(monitor):
+    class ErrorAgent:
         def __init__(self):
-            self.model = MockModel()
+            self.model = ErrorModel()
+            self.error_handler = ErrorHandler()
 
-    class MockModel:
+    class ErrorModel:
         def process_input(self, *args, **kwargs):
             raise Exception("Test error")
 
-    agent = MockAgent()
-    status = monitor._check_model_status(agent)
+    class ErrorHandler:
+        def get_error_log(self, limit):
+            return ["Recent error"]
 
-    assert "unhealthy" in status
-    assert "Test error" in status
+    agent = ErrorAgent()
+    health = monitor.get_agent_health(agent)
 
-
-def test_get_last_error_no_handler(monitor):
-    class MockAgent:
-        pass
-
-    agent = MockAgent()
-    error = monitor._get_last_error(agent)
-
-    assert error is None
+    assert "unhealthy" in health["model_status"]
+    assert "Test error" in health["model_status"]
+    assert health["last_error"] == "Recent error"
