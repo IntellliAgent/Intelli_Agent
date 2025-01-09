@@ -1,140 +1,146 @@
-from typing import Dict, List
+"""Explainability engine for decision making process."""
+
+from typing import Dict, List, Optional
 from dataclasses import dataclass
 from datetime import datetime
 
 
 @dataclass
 class Explanation:
-    decision: str
-    reasoning: List[str]
-    factors: Dict[str, float]
+    """Container for decision explanation."""
+    decision_id: str
+    reasoning_steps: List[str]
+    evidence: Dict[str, List[str]]
+    confidence: float
+    metadata: Dict
     timestamp: datetime
-    context: Dict
 
 
 class ExplainabilityEngine:
-    def __init__(self):
-        self.explanations: List[Explanation] = []
+    """Handles generation and management of explanations."""
 
-    def explain_decision(
+    def __init__(self):
+        """Initialize the explainability engine."""
+        self.explanations: Dict[str, Explanation] = {}
+
+    def generate_explanation(
         self,
         decision: str,
         context: Dict,
-        model_weights: Dict[str, float]
+        thought_chain: List[Dict],
+        confidence: float
     ) -> Explanation:
-        """Generate an explanation for a decision."""
-        # Extract key factors that influenced the decision
-        factors = self._extract_key_factors(context, model_weights)
+        """Generate an explanation for a decision.
 
-        # Generate reasoning steps
-        reasoning = self._generate_reasoning(decision, factors, context)
+        Args:
+            decision: The decision made.
+            context: Context information.
+            thought_chain: Chain of thoughts leading to decision.
+            confidence: Confidence in the decision.
+
+        Returns:
+            Explanation: Generated explanation.
+        """
+        # Extract reasoning steps from thought chain
+        reasoning_steps = [
+            thought["content"]
+            for thought in thought_chain
+        ]
+
+        # Collect evidence from context and thoughts
+        evidence = self._collect_evidence(context, thought_chain)
 
         # Create explanation
         explanation = Explanation(
-            decision=decision,
-            reasoning=reasoning,
-            factors=factors,
-            timestamp=datetime.now(),
-            context=context
+            decision_id=f"exp_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+            reasoning_steps=reasoning_steps,
+            evidence=evidence,
+            confidence=confidence,
+            metadata={
+                "context_size": len(context),
+                "chain_length": len(thought_chain),
+                "decision_type": self._infer_decision_type(decision)
+            },
+            timestamp=datetime.now()
         )
 
-        self.explanations.append(explanation)
+        # Store explanation
+        self.explanations[explanation.decision_id] = explanation
         return explanation
 
-    def _extract_key_factors(
+    def get_explanation(
+        self,
+        decision_id: str
+    ) -> Optional[Explanation]:
+        """Retrieve a stored explanation.
+
+        Args:
+            decision_id: ID of the decision.
+
+        Returns:
+            Optional[Explanation]: The explanation if found.
+        """
+        return self.explanations.get(decision_id)
+
+    def _collect_evidence(
         self,
         context: Dict,
-        weights: Dict[str, float]
-    ) -> Dict[str, float]:
-        """Extract key factors that influenced the decision."""
-        factors = {}
+        thought_chain: List[Dict]
+    ) -> Dict[str, List[str]]:
+        """Collect evidence from context and thought chain.
 
+        Args:
+            context: Context information.
+            thought_chain: Chain of thoughts.
+
+        Returns:
+            Dict[str, List[str]]: Collected evidence.
+        """
+        evidence = {
+            "context_based": [],
+            "reasoning_based": [],
+            "confidence_based": []
+        }
+
+        # Context-based evidence
         for key, value in context.items():
-            weight_key = f"{key}:{value}"
-            if weight_key in weights:
-                factors[key] = weights[weight_key]
-            elif key in weights:
-                factors[key] = weights[key]
+            if isinstance(value, (str, int, float)):
+                evidence["context_based"].append(f"{key}: {value}")
 
-        # Normalize factor weights
-        total_weight = sum(factors.values())
-        if total_weight > 0:
-            factors = {
-                k: v/total_weight
-                for k, v in factors.items()
-            }
+        # Reasoning-based evidence
+        for thought in thought_chain:
+            if thought.get("confidence", 0) > 0.8:
+                evidence["reasoning_based"].append(thought["content"])
 
-        return dict(
-            sorted(
-                factors.items(),
-                key=lambda x: x[1],
-                reverse=True
-            )[:5]  # Top 5 factors
-        )
-
-    def _generate_reasoning(
-        self,
-        decision: str,
-        factors: Dict[str, float],
-        context: Dict
-    ) -> List[str]:
-        """Generate step-by-step reasoning for the decision."""
-        reasoning = []
-
-        # Add decision statement
-        reasoning.append(f"Final decision: {decision}")
-
-        # Add factor explanations
-        for factor, weight in factors.items():
-            value = context.get(factor, "N/A")
-            reasoning.append(
-                f"Factor '{factor}' (importance: {weight:.2f}) "
-                f"with value '{value}' influenced this decision."
+        # Confidence-based evidence
+        confidence_values = [
+            thought.get("confidence", 0)
+            for thought in thought_chain
+        ]
+        if confidence_values:
+            avg_confidence = sum(confidence_values) / len(confidence_values)
+            evidence["confidence_based"].append(
+                f"Average confidence: {avg_confidence:.2f}"
             )
 
-        # Add confidence statement
-        total_weight = sum(factors.values())
-        reasoning.append(
-            f"Overall confidence in this decision: {total_weight:.2f}"
-        )
+        return evidence
 
-        return reasoning
+    def _infer_decision_type(self, decision: str) -> str:
+        """Infer the type of decision made.
 
-    def get_similar_decisions(
-        self,
-        context: Dict,
-        limit: int = 5
-    ) -> List[Explanation]:
-        """Find similar past decisions based on context."""
-        if not self.explanations:
-            return []
+        Args:
+            decision: The decision text.
 
-        scored_explanations = [
-            (self._calculate_similarity(e.context, context), e)
-            for e in self.explanations
-        ]
+        Returns:
+            str: Inferred decision type.
+        """
+        decision_lower = decision.lower()
 
-        return [
-            e for _, e in sorted(
-                scored_explanations,
-                key=lambda x: x[0],
-                reverse=True
-            )[:limit]
-        ]
-
-    def _calculate_similarity(
-        self,
-        context1: Dict,
-        context2: Dict
-    ) -> float:
-        """Calculate similarity score between two contexts."""
-        common_keys = set(context1.keys()) & set(context2.keys())
-        if not common_keys:
-            return 0.0
-
-        similarity = sum(
-            1.0 if context1[k] == context2[k] else 0.0
-            for k in common_keys
-        )
-
-        return similarity / len(common_keys)
+        if any(word in decision_lower for word in ["should", "must", "need"]):
+            return "recommendation"
+        elif any(word in decision_lower for word in ["is", "are", "was", "were"]):
+            return "classification"
+        elif any(word in decision_lower for word in ["will", "going to"]):
+            return "prediction"
+        else:
+            return "general"
