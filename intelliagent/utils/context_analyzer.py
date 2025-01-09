@@ -29,6 +29,89 @@ class ContextAnalyzer:
             "input_length": len(input_data),
             "context_keys": list(context.keys())
         }
+        self.sentiment_keywords = {
+            'positive': ['good', 'great', 'excellent', 'happy', 'profit', 'gain'],
+            'negative': ['bad', 'poor', 'terrible', 'unhappy', 'loss', 'decline'],
+            'neutral': ['okay', 'normal', 'standard', 'regular', 'usual']
+        }
+
+    def analyze_input(self, input_data: str) -> Dict[str, Any]:
+        """Analyze input data to extract relevant context."""
+        return {
+            "entities": self._extract_entities(input_data),
+            "sentiment": self._analyze_sentiment(input_data),
+            "key_points": self._extract_key_points(input_data),
+            "metadata": {
+                "timestamp": datetime.now().isoformat(),
+                "length": len(input_data),
+                "complexity": self._calculate_complexity(input_data)
+            }
+        }
+
+    def _extract_entities(self, text: str) -> Dict[str, List[str]]:
+        """Extract entities from text using patterns."""
+        entities = defaultdict(list)
+
+        for entity_type, pattern in self.entity_patterns.items():
+            matches = re.finditer(pattern, text)
+            entities[entity_type].extend([m.group() for m in matches])
+
+        return dict(entities)
+
+    def _analyze_sentiment(self, text: str) -> Dict[str, float]:
+        """Analyze text sentiment based on keyword matching."""
+        text = text.lower()
+        scores = {
+            'positive': 0.0,
+            'negative': 0.0,
+            'neutral': 0.0
+        }
+
+        words = text.split()
+        total_matches = 0
+
+        for sentiment, keywords in self.sentiment_keywords.items():
+            matches = sum(1 for word in words if word in keywords)
+            scores[sentiment] = matches
+            total_matches += matches
+
+        # Normalize scores
+        if total_matches > 0:
+            for sentiment in scores:
+                scores[sentiment] /= total_matches
+        else:
+            scores['neutral'] = 1.0
+
+        return scores
+
+    def _extract_key_points(self, text: str) -> List[str]:
+        """Extract key points from text."""
+        sentences = re.split(r'[.!?]+', text)
+        key_points = []
+
+        for sentence in sentences:
+            sentence = sentence.strip()
+            if not sentence:
+                continue
+
+            # Identify sentences with important indicators
+            indicators = ['must', 'should',
+                          'important', 'key', 'critical', 'need']
+            if any(indicator in sentence.lower() for indicator in indicators):
+                key_points.append(sentence)
+
+        return key_points
+
+    def _calculate_complexity(self, text: str) -> float:
+        """Calculate text complexity score."""
+        words = text.split()
+        if not words:
+            return 0.0
+
+        avg_word_length = sum(len(word) for word in words) / len(words)
+        sentence_count = len(re.split(r'[.!?]+', text))
+
+        return (avg_word_length * 0.5) + (len(words) / max(sentence_count, 1) * 0.5)
 
         return enriched_context
 

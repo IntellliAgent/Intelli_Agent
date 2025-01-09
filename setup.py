@@ -1,6 +1,33 @@
 """Setup configuration for IntelliAgent package."""
 
 from setuptools import setup, find_packages
+import os
+import re
+
+# Lê a versão diretamente do arquivo version.py
+
+
+def get_version():
+    version_file = os.path.join(
+        os.path.dirname(__file__),
+        'intelliagent',
+        'version.py'
+    )
+    with open(version_file, 'r', encoding='utf-8') as f:
+        content = f.read()
+        version_match = re.search(
+            r'^__version__ = ["\']([^"\']*)["\']',
+            content,
+            re.M
+        )
+        if version_match:
+            return version_match.group(1)
+        raise RuntimeError("Unable to find version string.")
+
+
+# Lê o README
+with open("README.md", "r", encoding="utf-8") as fh:
+    long_description = fh.read()
 
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
