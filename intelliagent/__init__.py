@@ -1,38 +1,23 @@
-"""
-IntelliAgent - Intelligent Agent for Dynamic Decision Making
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+"""IntelliAgent - A sophisticated AI agent framework."""
 
-IntelliAgent is a library that provides adaptive decision-making capabilities
-through context-aware AI agents.
-
-Basic usage:
-
-   >>> from intelliagent import DecisionMaker
-   >>> agent = DecisionMaker(api_key="your-api-key")
-   >>> decision = agent.make_decision(
-   ...     user_id="user123",
-   ...     input_data="some input"
-   ... )
-   >>> print(decision)
-
-For more information, please refer to the documentation:
-https://intelliagent.readthedocs.io/
-"""
-
-from .version import __version__, __author__, __author_email__
 from .core.decision_maker import DecisionMaker
-from .core.async_decision_maker import AsyncDecisionMaker
-from .core.belief_generator import BeliefGenerator
-from .core.domain_adapter import DomainAdapter
-from .core.memory_manager import MemoryManager
+from .core.belief_generator import BeliefGenerator, Belief
+from .core.chain_of_thought import ChainOfThought, Thought
+from .core.uncertainty_handler import UncertaintyHandler, UncertaintyMetrics
+from .core.explainability import ExplainabilityEngine, Explanation
+
+__version__ = "0.1.0"
+__author__ = "Your Name"
+__email__ = "your.email@example.com"
 
 __all__ = [
-    'DecisionMaker',
-    'AsyncDecisionMaker',
-    'BeliefGenerator',
-    'DomainAdapter',
-    'MemoryManager',
-    '__version__',
-    '__author__',
-    '__author_email__'
+    "DecisionMaker",
+    "BeliefGenerator",
+    "Belief",
+    "ChainOfThought",
+    "Thought",
+    "UncertaintyHandler",
+    "UncertaintyMetrics",
+    "ExplainabilityEngine",
+    "Explanation"
 ]
