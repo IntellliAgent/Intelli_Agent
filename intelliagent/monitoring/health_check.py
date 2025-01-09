@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Dict, Optional
 import psutil
 import os
 import json
