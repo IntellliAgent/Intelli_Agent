@@ -152,6 +152,50 @@ The value distribution analysis helps identify:
 - Confidence patterns across values
 - Potential value thresholds
 
+### Decision Outcome Analysis
+
+Analyze the relationship between decisions and their outcomes:
+
+```python
+chart = visualizer.create_outcome_analysis(explanations)
+```
+
+This visualization includes:
+
+- Outcome distribution by decision type
+- Confidence vs outcome analysis
+- Interactive tooltips with detailed information
+- Combined view of multiple outcome metrics
+
+The outcome analysis helps identify:
+
+- Success rates for different decision types
+- Confidence patterns for successful/failed decisions
+- Decision type effectiveness
+- Potential areas for improvement
+
+### Decision Comparison
+
+Compare two decisions side by side:
+
+```python
+chart = visualizer.create_decision_comparison(explanation1, explanation2)
+```
+
+This visualization includes:
+
+- Factor influence comparison
+- Confidence breakdown with delta
+- Category distribution comparison
+- Side-by-side reasoning steps
+
+The comparison helps identify:
+
+- Differences in factor influence
+- Confidence variations
+- Category distribution changes
+- Reasoning step variations
+
 ## Interactive Dashboard
 
 The dashboard provides an interactive interface for exploring explanations:
@@ -202,3 +246,15 @@ For specific decisions:
 - Context influence breakdown
 - Decision flow visualization
 - Raw explanation data
+
+## Interactive Features
+
+The dashboard includes several interactive features:
+
+- Time window selection
+- Visualization type switching
+- Decision comparison tool
+- Factor selection and filtering
+- Interactive tooltips and legends
+- Expandable metadata view
+- Customizable chart parameters

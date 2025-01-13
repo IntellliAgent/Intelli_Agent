@@ -384,3 +384,79 @@ def test_create_factor_value_distribution(visualizer, sample_explanation):
     assert chart.layout.title.text == "Value Distribution for factor1"
     assert len(chart.data) >= 1  # At least scatter plot
     assert isinstance(chart.data[0], go.Scatter)
+
+
+def test_create_outcome_analysis(visualizer, sample_explanation):
+    """Test outcome analysis visualization."""
+    # Create multiple explanations with different outcomes
+    explanations = [
+        sample_explanation,
+        Explanation(
+            decision_id="test_decision_2",
+            reasoning_steps=["Step 1"],
+            evidence={"source1": ["evidence1"]},
+            confidence=0.7,
+            metadata={
+                "decision_type": "classification",
+                "outcome": "success"
+            },
+            timestamp=datetime.now(),
+            context_influence={
+                "factor1": ContextFactor(
+                    name="factor1",
+                    value="value1",
+                    influence_score=0.8,
+                    confidence=0.7,
+                    category="category1"
+                )
+            },
+            key_factors=["factor1"]
+        )
+    ]
+
+    chart = visualizer.create_outcome_analysis(explanations)
+
+    assert isinstance(chart, go.Figure)
+    assert chart.layout.title.text == "Decision Outcome Analysis"
+    assert len(chart.data) >= 2  # At least distribution and box plot
+    assert any(isinstance(trace, go.Bar) for trace in chart.data)
+    assert any(isinstance(trace, go.Box) for trace in chart.data)
+
+
+def test_create_decision_comparison(visualizer, sample_explanation):
+    """Test decision comparison visualization."""
+    explanation2 = Explanation(
+        decision_id="test_decision_2",
+        reasoning_steps=["Step 1", "Step 2"],
+        evidence={"source1": ["evidence1"]},
+        confidence=0.7,
+        metadata={"decision_type": "classification"},
+        timestamp=datetime.now(),
+        context_influence={
+            "factor1": ContextFactor(
+                name="factor1",
+                value="value1",
+                influence_score=0.8,
+                confidence=0.7,
+                category="category1"
+            ),
+            "factor3": ContextFactor(
+                name="factor3",
+                value="value3",
+                influence_score=0.3,
+                confidence=0.9,
+                category="category3"
+            )
+        },
+        key_factors=["factor1", "factor3"]
+    )
+
+    chart = visualizer.create_decision_comparison(sample_explanation, explanation2)
+
+    assert isinstance(chart, go.Figure)
+    assert chart.layout.title.text == "Decision Comparison"
+    assert len(chart.data) >= 4  # At least bars, gauge, pies, and table
+    assert any(isinstance(trace, go.Bar) for trace in chart.data)
+    assert any(isinstance(trace, go.Indicator) for trace in chart.data)
+    assert any(isinstance(trace, go.Pie) for trace in chart.data)
+    assert any(isinstance(trace, go.Table) for trace in chart.data)

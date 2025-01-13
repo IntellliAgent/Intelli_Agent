@@ -40,6 +40,10 @@ class ExplanationDashboard:
         # Get filtered explanations
         explanations = self._get_filtered_explanations(time_window)
 
+        # Show comparison if active
+        self._show_comparison(explanations)
+
+        # Show main content
         if visualization_type == "Overview":
             self._show_overview(explanations)
         elif visualization_type == "Timeline":
@@ -117,6 +121,13 @@ class ExplanationDashboard:
             use_container_width=True
         )
 
+        # Add outcome analysis
+        st.subheader("Decision Outcomes")
+        st.plotly_chart(
+            self.visualizer.create_outcome_analysis(explanations),
+            use_container_width=True
+        )
+
     def _show_timeline(self, explanations: List[Explanation]):
         """Show timeline visualization."""
         st.header("Decision Timeline")
@@ -174,15 +185,24 @@ class ExplanationDashboard:
             return
 
         # Add explanation selector
-        selected_index = st.selectbox(
-            "Select Explanation",
-            range(len(explanations)),
-            format_func=lambda i: (
-                f"{explanations[i].decision_id} - "
-                f"{explanations[i].timestamp.strftime('%Y-%m-%d %H:%M:%S')} - "
-                f"Confidence: {explanations[i].confidence:.1%}"
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            selected_index = st.selectbox(
+                "Select Explanation",
+                range(len(explanations)),
+                format_func=lambda i: (
+                    f"{explanations[i].decision_id} - "
+                    f"{explanations[i].timestamp.strftime('%Y-%m-%d %H:%M:%S')} - "
+                    f"Confidence: {explanations[i].confidence:.1%}"
+                )
             )
-        )
+        with col2:
+            st.button(
+                "Compare Decisions",
+                on_click=self._show_comparison_dialog,
+                args=(explanations, selected_index)
+            )
+
         explanation = explanations[selected_index]
 
         # Add metadata display
@@ -253,3 +273,44 @@ class ExplanationDashboard:
 
         with tab4:
             st.json(self.engine.visualize_explanation(explanation.decision_id))
+
+    def _show_comparison_dialog(
+        self,
+        explanations: List[Explanation],
+        current_index: int
+    ):
+        """Show dialog for comparing decisions."""
+        st.session_state.show_comparison = True
+        st.session_state.comparison_index1 = current_index
+
+    def _show_comparison(self, explanations: List[Explanation]):
+        """Show comparison between two decisions."""
+        if not hasattr(st.session_state, 'show_comparison'):
+            return
+
+        if st.session_state.show_comparison:
+            with st.sidebar:
+                st.subheader("Decision Comparison")
+
+                # Add second explanation selector
+                selected_index2 = st.selectbox(
+                    "Compare with",
+                    range(len(explanations)),
+                    format_func=lambda i: (
+                        f"{explanations[i].decision_id} - "
+                        f"{explanations[i].timestamp.strftime('%Y-%m-%d %H:%M:%S')}"
+                    )
+                )
+
+                if st.button("Close Comparison"):
+                    st.session_state.show_comparison = False
+                    return
+
+                # Show comparison visualization
+                st.plotly_chart(
+                    self.visualizer.create_decision_comparison(
+                        explanations[st.session_state.comparison_index1],
+                        explanations[selected_index2]
+                    ),
+                    use_container_width=True
+                )

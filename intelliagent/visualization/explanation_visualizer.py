@@ -7,6 +7,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 import networkx as nx
 import numpy as np
+from plotly.subplots import make_subplots
 
 from ..core.explainability import Explanation
 
@@ -914,6 +915,249 @@ class ExplanationVisualizer:
             xaxis_title="Factor Value",
             yaxis_title="Influence Score",
             showlegend=True
+        )
+
+        return fig
+
+    def create_outcome_analysis(
+        self,
+        explanations: List[Explanation]
+    ) -> go.Figure:
+        """Create a visualization analyzing decision outcomes.
+
+        Args:
+            explanations: List of explanations to analyze
+
+        Returns:
+            go.Figure: Decision outcome analysis visualization
+        """
+        # Collect outcome data
+        data = []
+        for exp in explanations:
+            outcome = exp.metadata.get('outcome', 'unknown')
+            data.append({
+                'timestamp': exp.timestamp,
+                'confidence': exp.confidence,
+                'outcome': outcome,
+                'decision_type': exp.metadata.get('decision_type', 'unknown'),
+                'top_factor': max(
+                    exp.context_influence.items(),
+                    key=lambda x: x[1].influence_score
+                )[0]
+            })
+
+        df = pd.DataFrame(data)
+
+        # Create figure with secondary y-axis
+        fig = make_subplots(
+            rows=2,
+            cols=1,
+            subplot_titles=(
+                "Outcome Distribution by Decision Type",
+                "Confidence vs Outcome"
+            ),
+            vertical_spacing=0.2
+        )
+
+        # Add outcome distribution
+        outcome_counts = df.groupby(['decision_type', 'outcome']).size().unstack()
+        fig.add_trace(
+            go.Bar(
+                x=outcome_counts.index,
+                y=outcome_counts[col],
+                name=col,
+                hovertemplate=(
+                    "Decision Type: %{x}<br>"
+                    f"Outcome: {col}<br>"
+                    "Count: %{y}<br>"
+                    "<extra></extra>"
+                )
+            ) for col in outcome_counts.columns
+        )
+
+        # Add confidence vs outcome box plot
+        fig.add_trace(
+            go.Box(
+                x=df['outcome'],
+                y=df['confidence'],
+                name='Confidence',
+                boxpoints='all',
+                jitter=0.3,
+                pointpos=-1.8,
+                hovertemplate=(
+                    "Outcome: %{x}<br>"
+                    "Confidence: %{y:.2%}<br>"
+                    "<extra></extra>"
+                )
+            ),
+            row=2,
+            col=1
+        )
+
+        # Update layout
+        fig.update_layout(
+            title="Decision Outcome Analysis",
+            showlegend=True,
+            height=800,
+            legend=dict(
+                yanchor="top",
+                y=0.99,
+                xanchor="left",
+                x=0.01
+            )
+        )
+
+        # Update y-axes
+        fig.update_yaxes(title_text="Count", row=1, col=1)
+        fig.update_yaxes(title_text="Confidence", row=2, col=1)
+
+        return fig
+
+    def create_decision_comparison(
+        self,
+        explanation1: Explanation,
+        explanation2: Explanation
+    ) -> go.Figure:
+        """Create a visualization comparing two decisions.
+
+        Args:
+            explanation1: First explanation to compare
+            explanation2: Second explanation to compare
+
+        Returns:
+            go.Figure: Decision comparison visualization
+        """
+        # Create figure with subplots
+        fig = make_subplots(
+            rows=2,
+            cols=2,
+            subplot_titles=(
+                "Factor Influence Comparison",
+                "Confidence Breakdown",
+                "Category Distribution",
+                "Reasoning Steps"
+            )
+        )
+
+        # Get common factors
+        all_factors = set(explanation1.context_influence.keys()) | set(
+            explanation2.context_influence.keys()
+        )
+
+        # Add factor influence comparison
+        factors1 = [
+            explanation1.context_influence.get(
+                f, ContextFactor(name=f, value="", influence_score=0,
+                                 confidence=0, category="")
+            ).influence_score
+            for f in all_factors
+        ]
+        factors2 = [
+            explanation2.context_influence.get(
+                f, ContextFactor(name=f, value="", influence_score=0,
+                                 confidence=0, category="")
+            ).influence_score
+            for f in all_factors
+        ]
+
+        fig.add_trace(
+            go.Bar(
+                name="Decision 1",
+                x=list(all_factors),
+                y=factors1,
+                text=[f"{v:.1%}" for v in factors1],
+                textposition='auto',
+            ),
+            row=1,
+            col=1
+        )
+        fig.add_trace(
+            go.Bar(
+                name="Decision 2",
+                x=list(all_factors),
+                y=factors2,
+                text=[f"{v:.1%}" for v in factors2],
+                textposition='auto',
+            ),
+            row=1,
+            col=1
+        )
+
+        # Add confidence breakdown
+        fig.add_trace(
+            go.Indicator(
+                mode="gauge+number+delta",
+                value=explanation1.confidence,
+                delta={'reference': explanation2.confidence},
+                gauge={'axis': {'range': [0, 1]}},
+                title={'text': "Confidence Comparison"}
+            ),
+            row=1,
+            col=2
+        )
+
+        # Add category distribution
+        categories1 = {}
+        categories2 = {}
+        for f in explanation1.context_influence.values():
+            categories1[f.category] = categories1.get(f.category, 0) + 1
+        for f in explanation2.context_influence.values():
+            categories2[f.category] = categories2.get(f.category, 0) + 1
+
+        fig.add_trace(
+            go.Pie(
+                labels=list(categories1.keys()),
+                values=list(categories1.values()),
+                name="Decision 1",
+                domain={'x': [0, 0.45], 'y': [0, 0.45]},
+                showlegend=False
+            ),
+            row=2,
+            col=1
+        )
+        fig.add_trace(
+            go.Pie(
+                labels=list(categories2.keys()),
+                values=list(categories2.values()),
+                name="Decision 2",
+                domain={'x': [0.55, 1], 'y': [0, 0.45]},
+                showlegend=False
+            ),
+            row=2,
+            col=1
+        )
+
+        # Add reasoning steps comparison
+        steps1 = [f"Step {i+1}" for i in range(len(explanation1.reasoning_steps))]
+        steps2 = [f"Step {i+1}" for i in range(len(explanation2.reasoning_steps))]
+
+        fig.add_trace(
+            go.Table(
+                header=dict(
+                    values=['Decision 1', 'Decision 2'],
+                    align='center'
+                ),
+                cells=dict(
+                    values=[explanation1.reasoning_steps, explanation2.reasoning_steps],
+                    align='left'
+                )
+            ),
+            row=2,
+            col=2
+        )
+
+        # Update layout
+        fig.update_layout(
+            title="Decision Comparison",
+            height=800,
+            showlegend=True,
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1
+            )
         )
 
         return fig
