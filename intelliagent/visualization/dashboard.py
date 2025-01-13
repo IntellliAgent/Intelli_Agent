@@ -103,6 +103,20 @@ class ExplanationDashboard:
                 f"{avg_steps:.1f}"
             )
 
+        # Add confidence distribution
+        st.subheader("Confidence Distribution")
+        st.plotly_chart(
+            self.visualizer.create_confidence_distribution(explanations),
+            use_container_width=True
+        )
+
+        # Add factor importance trend
+        st.subheader("Factor Importance Over Time")
+        st.plotly_chart(
+            self.visualizer.create_factor_importance_trend(explanations),
+            use_container_width=True
+        )
+
     def _show_timeline(self, explanations: List[Explanation]):
         """Show timeline visualization."""
         st.header("Decision Timeline")
@@ -120,24 +134,122 @@ class ExplanationDashboard:
             st.warning("Need at least 2 explanations for correlation analysis.")
             return
 
-        st.plotly_chart(
-            self.visualizer.create_factor_correlation_heatmap(explanations),
-            use_container_width=True
-        )
+        tab1, tab2, tab3 = st.tabs([
+            "Correlation Heatmap",
+            "Category Evolution",
+            "Category Comparison"
+        ])
+
+        with tab1:
+            st.plotly_chart(
+                self.visualizer.create_factor_correlation_heatmap(explanations),
+                use_container_width=True
+            )
+
+        with tab2:
+            window_size = st.slider(
+                "Trend Window Size",
+                min_value=2,
+                max_value=50,
+                value=10
+            )
+            st.plotly_chart(
+                self.visualizer.create_category_evolution(
+                    explanations,
+                    window_size=window_size
+                ),
+                use_container_width=True
+            )
+
+        with tab3:
+            st.plotly_chart(
+                self.visualizer.create_category_comparison(explanations),
+                use_container_width=True
+            )
 
     def _show_detailed_analysis(self, explanations: List[Explanation]):
         """Show detailed analysis for a single explanation."""
-        st.subheader("Context Influence")
-        st.plotly_chart(
-            self.visualizer.create_influence_chart(explanations[0]),
-            use_container_width=True
-        )
+        if not explanations:
+            st.warning("No explanations available for analysis.")
+            return
 
-        st.subheader("Decision Flow")
-        st.plotly_chart(
-            self.visualizer.create_decision_flow(explanations[0]),
-            use_container_width=True
+        # Add explanation selector
+        selected_index = st.selectbox(
+            "Select Explanation",
+            range(len(explanations)),
+            format_func=lambda i: (
+                f"{explanations[i].decision_id} - "
+                f"{explanations[i].timestamp.strftime('%Y-%m-%d %H:%M:%S')} - "
+                f"Confidence: {explanations[i].confidence:.1%}"
+            )
         )
+        explanation = explanations[selected_index]
 
-        st.subheader("Raw Data")
-        st.json(self.engine.visualize_explanation(explanations[0].decision_id))
+        # Add metadata display
+        with st.expander("Explanation Metadata", expanded=False):
+            st.json(explanation.metadata)
+
+        # Add tabs for different visualizations
+        tab1, tab2, tab3, tab4 = st.tabs([
+            "Context Influence",
+            "Decision Flow",
+            "Factor Values",
+            "Raw Data"
+        ])
+
+        with tab1:
+            # Add top-n selector
+            top_n = st.slider(
+                "Number of top factors to show",
+                min_value=3,
+                max_value=10,
+                value=5
+            )
+            st.plotly_chart(
+                self.visualizer.create_influence_chart(
+                    explanation,
+                    top_n=top_n
+                ),
+                use_container_width=True
+            )
+
+        with tab2:
+            col1, col2 = st.columns(2)
+            with col1:
+                st.subheader("Network Graph")
+                st.plotly_chart(
+                    self.visualizer.create_decision_flow(explanation),
+                    use_container_width=True
+                )
+            with col2:
+                st.subheader("Sankey Diagram")
+                st.plotly_chart(
+                    self.visualizer.create_decision_sankey(explanation),
+                    use_container_width=True
+                )
+
+        with tab3:
+            col1, col2 = st.columns([1, 3])
+            with col1:
+                # Add factor selector
+                factor_name = st.selectbox(
+                    "Select Factor",
+                    options=list(explanation.context_influence.keys())
+                )
+                # Add factor details
+                factor = explanation.context_influence[factor_name]
+                st.metric("Influence Score", f"{factor.influence_score:.1%}")
+                st.metric("Confidence", f"{factor.confidence:.1%}")
+                st.metric("Category", factor.category)
+
+            with col2:
+                st.plotly_chart(
+                    self.visualizer.create_factor_value_distribution(
+                        explanations,
+                        factor_name
+                    ),
+                    use_container_width=True
+                )
+
+        with tab4:
+            st.json(self.engine.visualize_explanation(explanation.decision_id))

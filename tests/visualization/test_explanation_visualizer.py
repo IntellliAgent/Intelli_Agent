@@ -182,3 +182,205 @@ def test_create_decision_timeline_with_window(visualizer, sample_explanation):
 
     assert isinstance(chart, go.Figure)
     assert chart.layout.title.text == "Decision Timeline"
+
+
+def test_create_decision_sankey(visualizer, sample_explanation):
+    """Test Sankey diagram creation."""
+    chart = visualizer.create_decision_sankey(sample_explanation)
+
+    assert isinstance(chart, go.Figure)
+    assert chart.layout.title.text == "Decision Flow (Sankey Diagram)"
+    assert len(chart.data) == 1
+    assert isinstance(chart.data[0], go.Sankey)
+
+    # Check node and link data
+    sankey_data = chart.data[0]
+    assert len(sankey_data.node.label) >= len(sample_explanation.context_influence) + 1
+    assert len(sankey_data.link.source) >= len(sample_explanation.context_influence)
+
+
+def test_create_factor_importance_trend(visualizer, sample_explanation):
+    """Test factor importance trend visualization."""
+    # Create multiple explanations with varying factor importance
+    explanations = [
+        sample_explanation,
+        Explanation(
+            decision_id="test_decision_2",
+            reasoning_steps=["Step 1"],
+            evidence={"source1": ["evidence1"]},
+            confidence=0.7,
+            metadata={"decision_type": "recommendation"},
+            timestamp=datetime.now() + timedelta(hours=1),
+            context_influence={
+                "factor1": ContextFactor(
+                    name="factor1",
+                    value="value1",
+                    influence_score=0.4,
+                    confidence=0.8,
+                    category="category1"
+                ),
+                "factor2": ContextFactor(
+                    name="factor2",
+                    value="value2",
+                    influence_score=0.6,
+                    confidence=0.7,
+                    category="category2"
+                )
+            },
+            key_factors=["factor1", "factor2"]
+        )
+    ]
+
+    chart = visualizer.create_factor_importance_trend(explanations)
+
+    assert isinstance(chart, go.Figure)
+    assert chart.layout.title.text == "Factor Importance Trend"
+    assert len(chart.data) > 0  # Should have at least one trace
+    assert all(isinstance(trace, go.Scatter) for trace in chart.data)
+
+
+def test_create_category_evolution(visualizer, sample_explanation):
+    """Test category evolution visualization."""
+    # Create multiple explanations with different timestamps
+    explanations = [
+        sample_explanation,
+        Explanation(
+            decision_id="test_decision_2",
+            reasoning_steps=["Step 1"],
+            evidence={"source1": ["evidence1"]},
+            confidence=0.7,
+            metadata={"decision_type": "recommendation"},
+            timestamp=datetime.now() + timedelta(hours=1),
+            context_influence={
+                "factor1": ContextFactor(
+                    name="factor1",
+                    value="value1",
+                    influence_score=0.3,
+                    confidence=0.8,
+                    category="category1"
+                ),
+                "factor3": ContextFactor(
+                    name="factor3",
+                    value="value3",
+                    influence_score=0.7,
+                    confidence=0.9,
+                    category="category3"
+                )
+            },
+            key_factors=["factor1", "factor3"]
+        )
+    ]
+
+    chart = visualizer.create_category_evolution(explanations)
+
+    assert isinstance(chart, go.Figure)
+    assert chart.layout.title.text == "Category Influence Evolution"
+    assert len(chart.data) > 0
+    assert all(isinstance(trace, go.Scatter) for trace in chart.data)
+
+
+def test_create_confidence_distribution(visualizer, sample_explanation):
+    """Test confidence distribution visualization."""
+    # Create multiple explanations with different confidence levels
+    explanations = [
+        sample_explanation,
+        Explanation(
+            decision_id="test_decision_2",
+            reasoning_steps=["Step 1"],
+            evidence={"source1": ["evidence1"]},
+            confidence=0.7,
+            metadata={"decision_type": "recommendation"},
+            timestamp=datetime.now(),
+            context_influence={
+                "factor1": ContextFactor(
+                    name="factor1",
+                    value="value1",
+                    influence_score=0.8,
+                    confidence=0.7,
+                    category="category1"
+                )
+            },
+            key_factors=["factor1"]
+        )
+    ]
+
+    chart = visualizer.create_confidence_distribution(explanations)
+
+    assert isinstance(chart, go.Figure)
+    assert chart.layout.title.text == "Confidence Distribution"
+    assert len(chart.data) >= 2  # Histogram and KDE
+    assert isinstance(chart.data[0], go.Histogram)
+    assert isinstance(chart.data[1], go.Scatter)  # KDE line
+
+
+def test_create_category_comparison(visualizer, sample_explanation):
+    """Test category comparison visualization."""
+    # Create multiple explanations with different categories
+    explanations = [
+        sample_explanation,
+        Explanation(
+            decision_id="test_decision_2",
+            reasoning_steps=["Step 1"],
+            evidence={"source1": ["evidence1"]},
+            confidence=0.7,
+            metadata={"decision_type": "recommendation"},
+            timestamp=datetime.now(),
+            context_influence={
+                "factor1": ContextFactor(
+                    name="factor1",
+                    value="value1",
+                    influence_score=0.8,
+                    confidence=0.7,
+                    category="category1"
+                ),
+                "factor3": ContextFactor(
+                    name="factor3",
+                    value="value3",
+                    influence_score=0.3,
+                    confidence=0.9,
+                    category="category3"
+                )
+            },
+            key_factors=["factor1", "factor3"]
+        )
+    ]
+
+    chart = visualizer.create_category_comparison(explanations)
+
+    assert isinstance(chart, go.Figure)
+    assert chart.layout.title.text == "Category Comparison (Parallel Coordinates)"
+    assert len(chart.data) == 1
+    assert isinstance(chart.data[0], go.Parcoords)
+
+
+def test_create_factor_value_distribution(visualizer, sample_explanation):
+    """Test factor value distribution visualization."""
+    # Create multiple explanations with different factor values
+    explanations = [
+        sample_explanation,
+        Explanation(
+            decision_id="test_decision_2",
+            reasoning_steps=["Step 1"],
+            evidence={"source1": ["evidence1"]},
+            confidence=0.7,
+            metadata={"decision_type": "recommendation"},
+            timestamp=datetime.now(),
+            context_influence={
+                "factor1": ContextFactor(
+                    name="factor1",
+                    value="value2",  # Different value
+                    influence_score=0.8,
+                    confidence=0.7,
+                    category="category1"
+                )
+            },
+            key_factors=["factor1"]
+        )
+    ]
+
+    chart = visualizer.create_factor_value_distribution(explanations, "factor1")
+
+    assert isinstance(chart, go.Figure)
+    assert chart.layout.title.text == "Value Distribution for factor1"
+    assert len(chart.data) >= 1  # At least scatter plot
+    assert isinstance(chart.data[0], go.Scatter)

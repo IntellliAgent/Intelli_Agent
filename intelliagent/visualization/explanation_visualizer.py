@@ -423,3 +423,497 @@ class ExplanationVisualizer:
         )
 
         return fig
+
+    def create_decision_sankey(
+        self,
+        explanation: Explanation
+    ) -> go.Figure:
+        """Create a Sankey diagram of the decision flow.
+
+        Args:
+            explanation: The explanation to visualize
+
+        Returns:
+            go.Figure: Sankey diagram
+        """
+        # Prepare nodes and links
+        nodes = []
+        links = []
+        node_indices = {}
+        current_index = 0
+
+        # Add context factors as source nodes
+        for name, factor in explanation.context_influence.items():
+            nodes.append({
+                "label": f"Factor: {name}",
+                "color": "blue"
+            })
+            node_indices[name] = current_index
+            current_index += 1
+
+        # Add reasoning steps as intermediate nodes
+        for i, step in enumerate(explanation.reasoning_steps):
+            nodes.append({
+                "label": f"Step {i+1}: {step}",
+                "color": "green"
+            })
+            node_indices[f"step_{i}"] = current_index
+            current_index += 1
+
+        # Add final decision node
+        nodes.append({
+            "label": "Decision",
+            "color": "red"
+        })
+        decision_index = current_index
+
+        # Create links from factors to first step
+        for name, factor in explanation.context_influence.items():
+            links.append({
+                "source": node_indices[name],
+                "target": node_indices["step_0"],
+                "value": factor.influence_score,
+                "color": "rgba(0,0,255,0.2)"
+            })
+
+        # Create links between steps
+        for i in range(len(explanation.reasoning_steps) - 1):
+            links.append({
+                "source": node_indices[f"step_{i}"],
+                "target": node_indices[f"step_{i+1}"],
+                "value": 1,
+                "color": "rgba(0,255,0,0.2)"
+            })
+
+        # Create link from last step to decision
+        last_step = len(explanation.reasoning_steps) - 1
+        if last_step >= 0:
+            links.append({
+                "source": node_indices[f"step_{last_step}"],
+                "target": decision_index,
+                "value": 1,
+                "color": "rgba(255,0,0,0.2)"
+            })
+
+        # Create figure
+        fig = go.Figure(data=[go.Sankey(
+            node=dict(
+                pad=15,
+                thickness=20,
+                line=dict(color="black", width=0.5),
+                label=[node["label"] for node in nodes],
+                color=[node["color"] for node in nodes]
+            ),
+            link=dict(
+                source=[link["source"] for link in links],
+                target=[link["target"] for link in links],
+                value=[link["value"] for link in links],
+                color=[link["color"] for link in links]
+            )
+        )])
+
+        fig.update_layout(
+            title="Decision Flow (Sankey Diagram)",
+            font_size=10,
+            height=600
+        )
+
+        return fig
+
+    def create_factor_importance_trend(
+        self,
+        explanations: List[Explanation],
+        top_n: int = 5
+    ) -> go.Figure:
+        """Create a visualization of how factor importance changes over time.
+
+        Args:
+            explanations: List of explanations to analyze
+            top_n: Number of top factors to track
+
+        Returns:
+            go.Figure: Factor importance trend visualization
+        """
+        # Get all factors and their total influence
+        factor_totals = {}
+        for exp in explanations:
+            for name, factor in exp.context_influence.items():
+                if name not in factor_totals:
+                    factor_totals[name] = 0
+                factor_totals[name] += factor.influence_score
+
+        # Get top N factors
+        top_factors = sorted(
+            factor_totals.items(),
+            key=lambda x: x[1],
+            reverse=True
+        )[:top_n]
+        top_factor_names = [f[0] for f in top_factors]
+
+        # Create timeline data
+        data = []
+        for exp in sorted(explanations, key=lambda x: x.timestamp):
+            row = {'timestamp': exp.timestamp}
+            for factor in top_factor_names:
+                if factor in exp.context_influence:
+                    row[factor] = exp.context_influence[factor].influence_score
+                else:
+                    row[factor] = 0
+            data.append(row)
+
+        df = pd.DataFrame(data)
+
+        # Create figure
+        fig = go.Figure()
+
+        # Add line for each factor
+        for factor in top_factor_names:
+            fig.add_trace(go.Scatter(
+                x=df['timestamp'],
+                y=df[factor],
+                mode='lines+markers',
+                name=factor,
+                hovertemplate=(
+                    "Time: %{x}<br>"
+                    f"{factor}: %{{y:.2%}}<br>"
+                    "<extra></extra>"
+                )
+            ))
+
+        fig.update_layout(
+            title="Factor Importance Trend",
+            xaxis_title="Time",
+            yaxis_title="Influence Score",
+            hovermode='x unified',
+            showlegend=True,
+            legend=dict(
+                yanchor="top",
+                y=0.99,
+                xanchor="left",
+                x=0.01
+            )
+        )
+
+        return fig
+
+    def create_category_evolution(
+        self,
+        explanations: List[Explanation],
+        window_size: int = 10
+    ) -> go.Figure:
+        """Create a visualization of how categories evolve over time.
+
+        Args:
+            explanations: List of explanations to analyze
+            window_size: Size of the rolling window for trend analysis
+
+        Returns:
+            go.Figure: Category evolution visualization
+        """
+        # Sort explanations by time
+        sorted_exps = sorted(explanations, key=lambda x: x.timestamp)
+
+        # Collect category data over time
+        data = []
+        for exp in sorted_exps:
+            categories = {}
+            total_influence = 0
+
+            for factor in exp.context_influence.values():
+                if factor.category not in categories:
+                    categories[factor.category] = 0
+                categories[factor.category] += factor.influence_score
+                total_influence += factor.influence_score
+
+            # Normalize influence scores
+            if total_influence > 0:
+                for category in categories:
+                    categories[category] /= total_influence
+
+            data.append({
+                'timestamp': exp.timestamp,
+                **categories
+            })
+
+        df = pd.DataFrame(data).fillna(0)
+
+        # Calculate rolling averages
+        for col in df.columns:
+            if col != 'timestamp':
+                df[f'{col}_rolling'] = df[col].rolling(window=window_size).mean()
+
+        # Create figure
+        fig = go.Figure()
+
+        # Add area traces for each category
+        categories = [col for col in df.columns if col != 'timestamp']
+        for category in categories:
+            if category.endswith('_rolling'):
+                continue
+
+            fig.add_trace(go.Scatter(
+                x=df['timestamp'],
+                y=df[category],
+                name=category,
+                mode='lines',
+                stackgroup='one',
+                hovertemplate=(
+                    "Time: %{x}<br>"
+                    f"{category}: %{{y:.1%}}<br>"
+                    "<extra></extra>"
+                )
+            ))
+
+            # Add rolling average line
+            fig.add_trace(go.Scatter(
+                x=df['timestamp'],
+                y=df[f'{category}_rolling'],
+                name=f'{category} (trend)',
+                line=dict(dash='dot'),
+                visible='legendonly'
+            ))
+
+        fig.update_layout(
+            title="Category Influence Evolution",
+            xaxis_title="Time",
+            yaxis_title="Relative Influence",
+            hovermode='x unified',
+            showlegend=True,
+            legend=dict(
+                yanchor="top",
+                y=0.99,
+                xanchor="left",
+                x=0.01
+            )
+        )
+
+        return fig
+
+    def create_confidence_distribution(
+        self,
+        explanations: List[Explanation]
+    ) -> go.Figure:
+        """Create a visualization of confidence distribution.
+
+        Args:
+            explanations: List of explanations to analyze
+
+        Returns:
+            go.Figure: Confidence distribution visualization
+        """
+        # Get confidence values
+        confidences = [exp.confidence for exp in explanations]
+
+        # Create histogram and KDE
+        fig = go.Figure()
+
+        # Add histogram
+        fig.add_trace(go.Histogram(
+            x=confidences,
+            name="Histogram",
+            histnorm='probability density',
+            opacity=0.7,
+            nbinsx=20,
+            hovertemplate=(
+                "Confidence: %{x:.1%}<br>"
+                "Density: %{y:.3f}<br>"
+                "<extra></extra>"
+            )
+        ))
+
+        # Add KDE (using numpy's histogram and gaussian_filter)
+        hist, bin_edges = np.histogram(
+            confidences,
+            bins=50,
+            density=True
+        )
+        bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+
+        from scipy.ndimage import gaussian_filter
+        smoothed = gaussian_filter(hist, sigma=1.5)
+
+        fig.add_trace(go.Scatter(
+            x=bin_centers,
+            y=smoothed,
+            name="KDE",
+            line=dict(width=2),
+            hovertemplate=(
+                "Confidence: %{x:.1%}<br>"
+                "Density: %{y:.3f}<br>"
+                "<extra></extra>"
+            )
+        ))
+
+        # Add mean line
+        mean_confidence = np.mean(confidences)
+        fig.add_vline(
+            x=mean_confidence,
+            line_dash="dash",
+            line_color="red",
+            annotation_text=f"Mean: {mean_confidence:.1%}"
+        )
+
+        fig.update_layout(
+            title="Confidence Distribution",
+            xaxis_title="Confidence",
+            yaxis_title="Density",
+            showlegend=True,
+            bargap=0.1
+        )
+
+        return fig
+
+    def create_category_comparison(
+        self,
+        explanations: List[Explanation]
+    ) -> go.Figure:
+        """Create a visualization comparing factor categories.
+
+        Args:
+            explanations: List of explanations to analyze
+
+        Returns:
+            go.Figure: Category comparison visualization
+        """
+        # Collect category statistics
+        categories = {}
+        for exp in explanations:
+            for factor in exp.context_influence.values():
+                if factor.category not in categories:
+                    categories[factor.category] = {
+                        'count': 0,
+                        'total_influence': 0,
+                        'total_confidence': 0,
+                        'high_influence_count': 0  # Count of times influence > 0.5
+                    }
+
+                cat_stats = categories[factor.category]
+                cat_stats['count'] += 1
+                cat_stats['total_influence'] += factor.influence_score
+                cat_stats['total_confidence'] += factor.confidence
+                if factor.influence_score > 0.5:
+                    cat_stats['high_influence_count'] += 1
+
+        # Prepare data for visualization
+        data = []
+        for category, stats in categories.items():
+            data.append({
+                'Category': category,
+                'Average Influence': stats['total_influence'] / stats['count'],
+                'Average Confidence': stats['total_confidence'] / stats['count'],
+                'High Influence Rate': stats['high_influence_count'] / stats['count'],
+                'Usage Count': stats['count']
+            })
+
+        df = pd.DataFrame(data)
+
+        # Create parallel coordinates plot
+        fig = go.Figure(data=go.Parcoords(
+            line=dict(
+                color=df['Usage Count'],
+                colorscale='Viridis'
+            ),
+            dimensions=[
+                dict(
+                    range=[0, 1],
+                    label='Average Influence',
+                    values=df['Average Influence']
+                ),
+                dict(
+                    range=[0, 1],
+                    label='Average Confidence',
+                    values=df['Average Confidence']
+                ),
+                dict(
+                    range=[0, 1],
+                    label='High Influence Rate',
+                    values=df['High Influence Rate']
+                ),
+                dict(
+                    range=[df['Usage Count'].min(), df['Usage Count'].max()],
+                    label='Usage Count',
+                    values=df['Usage Count']
+                )
+            ]
+        ))
+
+        fig.update_layout(
+            title="Category Comparison (Parallel Coordinates)",
+            height=500,
+            showlegend=False
+        )
+
+        return fig
+
+    def create_factor_value_distribution(
+        self,
+        explanations: List[Explanation],
+        factor_name: str
+    ) -> go.Figure:
+        """Create a visualization of value distribution for a specific factor.
+
+        Args:
+            explanations: List of explanations to analyze
+            factor_name: Name of the factor to analyze
+
+        Returns:
+            go.Figure: Factor value distribution visualization
+        """
+        # Collect factor values and their influence
+        values = []
+        influences = []
+        confidences = []
+
+        for exp in explanations:
+            if factor_name in exp.context_influence:
+                factor = exp.context_influence[factor_name]
+                values.append(factor.value)
+                influences.append(factor.influence_score)
+                confidences.append(factor.confidence)
+
+        # Create figure
+        fig = go.Figure()
+
+        # Add scatter plot
+        fig.add_trace(go.Scatter(
+            x=values,
+            y=influences,
+            mode='markers',
+            marker=dict(
+                size=10,
+                color=confidences,
+                colorscale='Viridis',
+                showscale=True,
+                colorbar=dict(title="Confidence")
+            ),
+            name='Values',
+            hovertemplate=(
+                "Value: %{x}<br>"
+                "Influence: %{y:.2%}<br>"
+                "Confidence: %{marker.color:.2%}<br>"
+                "<extra></extra>"
+            )
+        ))
+
+        # Add trend line if numeric values
+        if all(isinstance(v, (int, float)) for v in values):
+            z = np.polyfit(values, influences, 1)
+            p = np.poly1d(z)
+            x_range = np.linspace(min(values), max(values), 100)
+
+            fig.add_trace(go.Scatter(
+                x=x_range,
+                y=p(x_range),
+                mode='lines',
+                name='Trend',
+                line=dict(dash='dash')
+            ))
+
+        fig.update_layout(
+            title=f"Value Distribution for {factor_name}",
+            xaxis_title="Factor Value",
+            yaxis_title="Influence Score",
+            showlegend=True
+        )
+
+        return fig

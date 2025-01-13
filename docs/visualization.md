@@ -64,6 +64,94 @@ The timeline visualization includes:
 - Top influencing factors
 - Interactive tooltips with detailed information
 
+### Decision Flow Visualizations
+
+The decision flow can be visualized in two ways:
+
+1. Network Graph:
+
+```python
+chart = visualizer.create_decision_flow(explanation)
+```
+
+2. Sankey Diagram:
+
+```python
+chart = visualizer.create_decision_sankey(explanation)
+```
+
+The Sankey diagram provides an alternative view of the decision flow, showing:
+
+- Factor influence as flow width
+- Clear progression through reasoning steps
+- Color-coded nodes for factors, steps, and decisions
+
+### Factor Importance Trend
+
+Track how the importance of different context factors changes over time:
+
+```python
+chart = visualizer.create_factor_importance_trend(explanations, top_n=5)
+```
+
+This visualization helps identify:
+
+- Which factors consistently have high influence
+- How factor importance evolves over time
+- Patterns in factor relationships
+- Sudden changes in factor importance
+
+The chart includes:
+
+- Lines for top N most influential factors
+- Interactive tooltips with detailed information
+- Unified hover mode for easy comparison
+- Clear legend for factor identification
+
+### Confidence Distribution
+
+Analyze the distribution of decision confidence levels:
+
+```python
+chart = visualizer.create_confidence_distribution(explanations)
+```
+
+This visualization includes:
+
+- Histogram of confidence values
+- Kernel Density Estimation (KDE) curve
+- Mean confidence line
+- Interactive tooltips with density information
+
+The distribution analysis helps identify:
+
+- Common confidence ranges
+- Unusual confidence values
+- Overall decision certainty patterns
+- Potential biases in confidence assessment
+
+### Factor Value Distribution
+
+Analyze how different values of a factor affect its influence:
+
+```python
+chart = visualizer.create_factor_value_distribution(explanations, factor_name="temperature")
+```
+
+This visualization includes:
+
+- Scatter plot of factor values vs influence
+- Color-coded confidence levels
+- Trend line for numeric values
+- Interactive tooltips with detailed information
+
+The value distribution analysis helps identify:
+
+- Value ranges with high influence
+- Correlation between values and influence
+- Confidence patterns across values
+- Potential value thresholds
+
 ## Interactive Dashboard
 
 The dashboard provides an interactive interface for exploring explanations:
