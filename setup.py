@@ -34,11 +34,14 @@ setup(
         "networkx>=2.5",
         "streamlit>=1.0.0",
         "scipy>=1.7.0",
+        "psutil>=5.8.0",
+        "memory_profiler>=0.60.0",
     ],
     extras_require={
         "dev": [
             "pytest>=6.0",
             "pytest-cov>=2.0",
+            "pytest-benchmark>=3.4.1",
             "black>=22.0",
             "isort>=5.0",
             "flake8>=3.9",
