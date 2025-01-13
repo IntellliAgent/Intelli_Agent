@@ -1,34 +1,69 @@
-"""Visualization module for explanations."""
+"""Visualization module for IntelliAgent.
 
-from typing import List, Optional, Tuple
+This module provides visualization capabilities for analyzing and understanding
+decision explanations. It includes various chart types and analysis tools.
+
+Typical usage example:
+
+    visualizer = ExplanationVisualizer()
+    chart = visualizer.create_influence_chart(explanation)
+    chart.show()
+"""
+
+from typing import List, Optional, Tuple, Dict, Any, Union
 import plotly.graph_objects as go
-import plotly.express as px
-import pandas as pd
-from datetime import datetime, timedelta
-import networkx as nx
-import numpy as np
 from plotly.subplots import make_subplots
+import pandas as pd
+import numpy as np
+import networkx as nx
+from datetime import datetime, timedelta
 
-from ..core.explainability import Explanation
+from ..core.explainability import Explanation, ContextFactor
 
 
 class ExplanationVisualizer:
-    """Handles visualization of explanations and analysis."""
+    """Handles visualization of explanations and analysis.
+
+    This class provides methods for creating various visualizations to analyze
+    decision explanations, including influence charts, timelines, correlation
+    analysis, and more.
+
+    Attributes:
+        None
+
+    Methods:
+        create_influence_chart: Creates a bar chart showing factor influence.
+        create_decision_flow: Creates a network graph of the decision process.
+        create_factor_correlation_heatmap: Creates a correlation matrix heatmap.
+        create_decision_timeline: Creates a timeline visualization.
+        ...
+    """
 
     def create_influence_chart(
         self,
         explanation: Explanation,
-        top_n: int = 5
+        top_n: int = 5,
+        color_scale: Optional[str] = 'Viridis'
     ) -> go.Figure:
-        """Create an influence chart for context factors.
+        """Creates an influence chart for context factors.
+
+        Generates a bar chart showing the relative influence of different context
+        factors on the decision, sorted by influence score.
 
         Args:
-            explanation: The explanation to visualize
-            top_n: Number of top factors to show
+            explanation: The explanation to visualize.
+            top_n: Number of top factors to show. Defaults to 5.
+            color_scale: Plotly color scale to use. Defaults to 'Viridis'.
 
         Returns:
-            go.Figure: Plotly figure object
+            A plotly Figure object containing the influence chart.
+
+        Raises:
+            ValueError: If explanation has no context factors.
         """
+        if not explanation.context_influence:
+            raise ValueError("Explanation has no context factors")
+
         # Sort factors by influence score
         factors = sorted(
             explanation.context_influence.items(),

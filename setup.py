@@ -1,26 +1,16 @@
-"""Setup configuration for IntelliAgent package."""
+"""Setup script for IntelliAgent."""
 
-from setuptools import setup, find_packages
-
-with open("README.md", "r", encoding="utf-8") as fh:
-    long_description = fh.read()
+from setuptools import find_packages, setup
 
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
-
-with open("README.md", "r", encoding="utf-8") as fh:
-    long_description = fh.read()
-
-with open("requirements/base.txt", "r", encoding="utf-8") as f:
-    requirements = [line.strip() for line in f if line.strip()
-                    and not line.startswith("#")]
 
 setup(
     name="intelliagent",
     version="0.1.0",
     author="Your Name",
     author_email="your.email@example.com",
-    description="A sophisticated AI agent framework",
+    description="An intelligent agent for dynamic decision making",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/yourusername/intelliagent",
@@ -37,20 +27,23 @@ setup(
         "Topic :: Scientific/Engineering :: Artificial Intelligence",
     ],
     python_requires=">=3.8",
-    install_requires=requirements,
+    install_requires=[
+        "numpy>=1.19.0",
+        "pandas>=1.2.0",
+        "plotly>=5.0.0",
+        "networkx>=2.5",
+        "streamlit>=1.0.0",
+        "scipy>=1.7.0",
+    ],
     extras_require={
         "dev": [
             "pytest>=6.0",
             "pytest-cov>=2.0",
             "black>=22.0",
             "isort>=5.0",
-            "mypy>=0.9",
             "flake8>=3.9",
-        ],
-    },
-    entry_points={
-        "console_scripts": [
-            "intelliagent=intelliagent.cli:main",
+            "mypy>=0.910",
+            "pre-commit>=2.15",
         ],
     },
 )
