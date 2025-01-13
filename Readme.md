@@ -42,7 +42,9 @@
 
 1. Install IntelliAgent:
 
-Visit our PyPI package page: [https://pypi.org/project/intelliagent/](https://pypi.org/project/intelliagent/)
+```bash
+pip install intelliagent
+```
 
 2. Use it in your project:
 
